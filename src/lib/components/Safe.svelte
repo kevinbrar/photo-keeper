@@ -68,16 +68,16 @@
     async function run(what: "check" | "copy") {
         working = what
         failed = ""
-        // A check that fails must not leave the last one's answer standing.
-        if (what === "check") safety = null
+        // Whatever runs, the last answer is about the folders as they were,
+        // and must not stand beside a failure.
+        safety = null
         at = null
         stage = what === "copy" ? "copy" : "library"
 
         try {
             if (what === "copy") {
+                copied = null
                 copied = await invoke<Mirrored>("make_second_copy")
-                // The last check is about the copies as they were.
-                safety = null
             } else {
                 safety = await invoke<Safety>("check_safety")
             }
