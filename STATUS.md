@@ -52,8 +52,8 @@ cargo mutants -f src/keeper.rs
 cargo mutants -f src/phone.rs -F landed_whole
 ```
 
-Last run: 112 breaks of the checksum, check, second-copy and read-back code,
-103 caught, 3 would not compile, 6 not caught. Of `verdict()`, 17 hand-made
+Last run: 113 breaks of the checksum, check, second-copy and read-back code,
+104 caught, 3 would not compile, 6 not caught. Of `verdict()`, 17 hand-made
 breaks (each way of wrongly saying "safe"), 17 caught.
 
 The 6 not caught, and why:
