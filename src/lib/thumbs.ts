@@ -25,7 +25,9 @@ export function address(item: Item): string {
     return convertFileSrc(path)
 }
 
-const keyOf = (item: Item) => `${item.path}|${item.size}|${item.taken}`
+// With the folder: two libraries can hold different photos of one name.
+const keyOf = (item: Item) =>
+    `${folder}|${item.path}|${item.size}|${item.taken}`
 
 let store: Promise<IDBDatabase | null> | null = null
 

@@ -38,7 +38,18 @@
     let converted = $state<string | null>(null)
     let undrawable = $state(false)
 
+    /// Counts the times the library was read, so a result of the safety check
+    /// is not shown for folders that have changed since.
+    let loaded = $state(0)
+
+    /// Read again only if a folder changed or a disk came or went.
+    async function refresh() {
+        const now = await invoke<Places>("library_places")
+        if (JSON.stringify(now) !== JSON.stringify(places)) await load()
+    }
+
     async function load() {
+        loaded += 1
         loading = true
         failed = ""
         try {
@@ -113,7 +124,15 @@
             },
         )
 
-        return () => void stop.then((off) => off())
+        // Coming back to the window: the folder may have been changed in the
+        // import window, or a disk plugged in or pulled out.
+        const back = () => void refresh()
+        window.addEventListener("focus", back)
+
+        return () => {
+            window.removeEventListener("focus", back)
+            void stop.then((off) => off())
+        }
     })
 </script>
 
@@ -159,7 +178,7 @@
     </header>
 
     {#if tab === "safety"}
-        <Safe {places} onchange={load} />
+        <Safe {places} {loaded} onchange={load} />
     {:else}
         <div class="grow overflow-y-auto px-4 pb-6">
             {#if failed}

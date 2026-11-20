@@ -40,6 +40,7 @@ describe("safe to delete", () => {
             library: clean(200),
             second: clean(200),
             onlyHere: 0,
+            sameDisk: false,
         })
 
         assert.equal(said.level, "safe")
@@ -47,8 +48,25 @@ describe("safe to delete", () => {
         assert.equal(said.title, "200 photos and videos safe in two places")
     })
 
+    test("is not said when both copies are on one disk", () => {
+        const said = verdict({
+            library: clean(200),
+            second: clean(200),
+            onlyHere: 0,
+            sameDisk: true,
+        })
+
+        assert.equal(said.level, "samedisk")
+        assert.equal(said.mayDelete, false)
+    })
+
     test("is not said with one copy", () => {
-        const said = verdict({ library: clean(200), second: null, onlyHere: 0 })
+        const said = verdict({
+            library: clean(200),
+            second: null,
+            onlyHere: 0,
+            sameDisk: false,
+        })
 
         assert.equal(said.level, "single")
         assert.equal(said.mayDelete, false)
@@ -59,6 +77,7 @@ describe("safe to delete", () => {
             library: clean(200),
             second: clean(190),
             onlyHere: 10,
+            sameDisk: false,
         })
 
         assert.equal(said.level, "behind")
@@ -73,6 +92,7 @@ describe("safe to delete", () => {
             }),
             second: clean(200),
             onlyHere: 0,
+            sameDisk: false,
         })
 
         assert.equal(said.level, "problem")
@@ -90,6 +110,7 @@ describe("safe to delete", () => {
                 ],
             }),
             onlyHere: 0,
+            sameDisk: false,
         })
 
         assert.equal(said.mayDelete, false)
@@ -102,6 +123,7 @@ describe("safe to delete", () => {
                 library: clean(200, { stopped: which === "library" }),
                 second: clean(200, { stopped: which === "second" }),
                 onlyHere: 0,
+                sameDisk: false,
             })
 
             assert.equal(said.level, "stopped")
@@ -114,6 +136,7 @@ describe("safe to delete", () => {
             library: clean(0),
             second: clean(0),
             onlyHere: 0,
+            sameDisk: false,
         })
 
         assert.equal(said.level, "empty")
@@ -125,6 +148,7 @@ describe("safe to delete", () => {
             library: clean(3, { adopted: 2 }),
             second: clean(5),
             onlyHere: 0,
+            sameDisk: false,
         })
 
         assert.equal(said.title, "5 photos and videos safe in two places")

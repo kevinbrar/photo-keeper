@@ -18,7 +18,12 @@
     // The safety check: the second copy, the check of both copies, and what
     // the result means for the iPhone. The words about safety come from
     // verdict() in src/lib/library.ts and must not be written here.
-    let { places, onchange }: { places: Places | null; onchange: () => void } =
+    // `loaded` changes whenever the window reads the library again.
+    let {
+        places,
+        loaded,
+        onchange,
+    }: { places: Places | null; loaded: number; onchange: () => void } =
         $props()
 
     let working = $state<"check" | "copy" | null>(null)
@@ -31,13 +36,28 @@
     const said = $derived(safety ? verdict(safety) : null)
     /// Files whose checksum is of the file on disk, not of what the phone sent.
     const unproven = $derived(
-        safety ? safety.library.matched - safety.library.fromPhone : 0,
+        safety
+            ? safety.library.matched +
+                  safety.library.adopted -
+                  safety.library.fromPhone
+            : 0,
     )
-    const problems = $derived<Problem[]>([
-        ...(safety?.library.problems ?? []),
-        ...(safety?.second?.problems ?? []),
-        ...(copied?.problems ?? []),
+    const within = (where: string, list: Problem[] = []) =>
+        list.map((problem) => ({ ...problem, where }))
+    const problems = $derived([
+        ...within("library", safety?.library.problems),
+        ...within("second copy", safety?.second?.problems),
+        ...within("second copy", copied?.problems),
     ])
+
+    // A result is about the folders as they were. New photos, another folder
+    // or a disk that came or went make it out of date.
+    $effect(() => {
+        void loaded
+        safety = null
+        copied = null
+        failed = ""
+    })
 
     const STAGE: Record<string, string> = {
         library: "Checking the library",
@@ -48,6 +68,8 @@
     async function run(what: "check" | "copy") {
         working = what
         failed = ""
+        // A check that fails must not leave the last one's answer standing.
+        if (what === "check") safety = null
         at = null
         stage = what === "copy" ? "copy" : "library"
 
@@ -240,8 +262,9 @@
             <section class="card">
                 <h2>Files that need a look</h2>
                 <ul class="max-h-64 overflow-y-auto select-text">
-                    {#each problems as problem (problem.path + problem.reason)}
+                    {#each problems as problem (problem.where + problem.path + problem.reason)}
                         <li class="py-0.5">
+                            <span class="text-muted">{problem.where}:</span>
                             {problem.path}
                             <span class="text-muted">— {problem.reason}</span>
                         </li>

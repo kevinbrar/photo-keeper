@@ -178,6 +178,13 @@ const VIDEO: [&str; 5] = ["mov", "mp4", "m4v", "avi", "3gp"];
 
 /// Every photo and video in the folder, newest first. Hidden files and
 /// folders are passed over: the scratch files of a copy start with a dot.
+/// Whether the file is a photo or video, by its name.
+pub fn is_media(path: &Path) -> bool {
+    path.extension()
+        .and_then(|e| e.to_str())
+        .is_some_and(|e| MEDIA.contains(&e.to_lowercase().as_str()))
+}
+
 pub fn items(folder: &Path) -> Result<Vec<Item>, String> {
     if !folder.is_dir() {
         return Err("cannot find the folder".into());
@@ -370,6 +377,44 @@ pub struct Mirrored {
 ///
 /// Nothing in `to` is replaced or removed. A file there that differs from the
 /// one in `from` is reported and left alone.
+/// The second copy is no copy if it is the library, or lies inside it.
+fn apart(folder: &Path, second: &Path) -> Result<(), String> {
+    let (Ok(a), Ok(b)) = (folder.canonicalize(), second.canonicalize()) else {
+        return Err("cannot read the folders".into());
+    };
+
+    if a.starts_with(&b) || b.starts_with(&a) {
+        return Err("the second copy must be in a different folder, on a different disk".into());
+    }
+
+    Ok(())
+}
+
+/// Whether both folders are on one disk, where one failure takes both copies.
+/// Unix compares the devices. Windows compares the drive letters, so two
+/// partitions of one physical disk still pass as two.
+fn same_disk(a: &Path, b: &Path) -> bool {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        matches!((fs::metadata(a), fs::metadata(b)), (Ok(a), Ok(b)) if a.dev() == b.dev())
+    }
+    #[cfg(not(unix))]
+    {
+        let drive = |path: &Path| {
+            path.canonicalize()
+                .ok()
+                .and_then(|path| match path.components().next() {
+                    Some(std::path::Component::Prefix(prefix)) => {
+                        Some(prefix.as_os_str().to_owned())
+                    }
+                    _ => None,
+                })
+        };
+        matches!((drive(a), drive(b)), (Some(a), Some(b)) if a == b)
+    }
+}
+
 pub fn mirror(
     from: &Path,
     to: &Path,
@@ -380,13 +425,7 @@ pub fn mirror(
         return Err("cannot find the folder for the second copy".into());
     }
 
-    let (Ok(a), Ok(b)) = (from.canonicalize(), to.canonicalize()) else {
-        return Err("cannot read the folders".into());
-    };
-
-    if a.starts_with(&b) || b.starts_with(&a) {
-        return Err("the second copy must be in a different folder, on a different disk".into());
-    }
+    apart(from, to)?;
 
     let source = items(from)?;
     let ours = Manifest::open(from)?;
@@ -582,6 +621,8 @@ pub struct Safety {
     pub second: Option<Checked>,
     /// Photos in the library that the second copy does not hold.
     pub only_here: usize,
+    /// Both copies are on one disk: one failure would take both.
+    pub same_disk: bool,
 }
 
 /// Check the library, and the second copy when it is there.
@@ -601,6 +642,8 @@ pub fn safety(
         });
     };
 
+    apart(folder, second)?;
+
     let checked = check(second, cancel, |at| progress("second", at))?;
 
     let ours = Manifest::open(folder)?.all()?;
@@ -614,6 +657,7 @@ pub fn safety(
         library,
         second: Some(checked),
         only_here,
+        same_disk: same_disk(folder, second),
     })
 }
 
@@ -843,6 +887,18 @@ mod tests {
 
         assert!(mirror(&from, &to, &GO, |_| {}).is_err());
         assert!(mirror(&from, &from, &GO, |_| {}).is_err());
+    }
+
+    #[test]
+    fn a_second_copy_on_the_same_disk_is_said_to_be() {
+        let from = library("same-disk");
+        let to = folder("same-disk-to");
+        mirror(&from, &to, &GO, |_| {}).unwrap();
+
+        // Both are in the temporary folder, so on one disk.
+        assert!(safety(&from, Some(&to), &GO, |_, _| {}).unwrap().same_disk);
+        // The library is not a second copy of itself.
+        assert!(safety(&from, Some(&from), &GO, |_, _| {}).is_err());
     }
 
     #[test]

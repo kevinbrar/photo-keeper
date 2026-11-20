@@ -60,3 +60,12 @@ guess later. Add to it; do not rewrite history.
 
 13. **Installers are unsigned.** Signing needs Apple's and Microsoft's paid
     certificates. For one household the first-open warning is acceptable.
+
+14. **Two folders on one disk are not two copies.** The check refuses to say
+    "safe" when the library and the second copy are on the same disk, and the
+    library cannot be its own second copy. On Windows this compares drive
+    letters, so two partitions of one physical disk still count as two.
+
+15. **A result is thrown away when anything changes.** A new import, another
+    folder, a disk plugged in or pulled out, or a check that fails all clear
+    the last verdict, so an old "safe" is never left on screen.

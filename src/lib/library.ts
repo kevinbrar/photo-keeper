@@ -39,6 +39,7 @@ export type Safety = {
     library: Checked
     second: Checked | null
     onlyHere: number
+    sameDisk: boolean
 }
 
 export type Mirrored = {
@@ -122,7 +123,14 @@ export type Verdict = {
     /// safe: two matching copies. single: one matching copy. behind: the
     /// second copy lacks some. problem: something did not match. stopped:
     /// the check did not finish. empty: nothing in the library.
-    level: "safe" | "single" | "behind" | "problem" | "stopped" | "empty"
+    level:
+        | "safe"
+        | "single"
+        | "samedisk"
+        | "behind"
+        | "problem"
+        | "stopped"
+        | "empty"
     title: string
     detail: string
     /// Whether the window may say photos can be deleted from the iPhone.
@@ -178,6 +186,15 @@ export function verdict(safety: Safety): Verdict {
             level: "behind",
             title: `${files(onlyHere)} not in the second copy yet`,
             detail: "Press Update second copy, then check again.",
+            mayDelete: false,
+        }
+    }
+
+    if (safety.sameDisk) {
+        return {
+            level: "samedisk",
+            title: `${files(total)} checked, but both copies are on one disk`,
+            detail: "Every file matches in both folders. But they are on the same disk: if it fails, both copies are gone. Put the second copy on a different disk before deleting from the iPhone.",
             mayDelete: false,
         }
     }
