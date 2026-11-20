@@ -178,6 +178,33 @@ const VIDEO: [&str; 5] = ["mov", "mp4", "m4v", "avi", "3gp"];
 
 /// Every photo and video in the folder, newest first. Hidden files and
 /// folders are passed over: the scratch files of a copy start with a dot.
+/// The photo or video the library holds at this place, written with `/`.
+/// Nothing else: not a path that climbs out, starts at a drive or a root,
+/// follows a link out of the folder, or names a file that is not media.
+pub fn held(folder: &Path, path: &str) -> Result<PathBuf, String> {
+    let plain = |part: &str| {
+        let mut parts = Path::new(part).components();
+        matches!(parts.next(), Some(std::path::Component::Normal(_))) && parts.next().is_none()
+    };
+    if !path.split('/').all(plain) {
+        return Err("not a file in the library".into());
+    }
+
+    let file = absolute(folder, path);
+    if !file.is_file() {
+        return Err("cannot find the file".into());
+    }
+
+    let (Ok(root), Ok(real)) = (folder.canonicalize(), file.canonicalize()) else {
+        return Err("cannot find the file".into());
+    };
+    if !real.starts_with(root) || !is_media(&real) {
+        return Err("not a file in the library".into());
+    }
+
+    Ok(file)
+}
+
 /// Whether the file is a photo or video, by its name.
 pub fn is_media(path: &Path) -> bool {
     path.extension()
@@ -899,6 +926,168 @@ mod tests {
         assert!(safety(&from, Some(&to), &GO, |_, _| {}).unwrap().same_disk);
         // The library is not a second copy of itself.
         assert!(safety(&from, Some(&from), &GO, |_, _| {}).is_err());
+    }
+
+    #[test]
+    fn only_a_photo_inside_the_library_can_be_opened() {
+        let path = library("held");
+        put(&path, "notes.txt", b"not media");
+        let outside = folder("held-outside");
+        put(&outside, "SECRET.JPG", b"not ours");
+        let name = outside.file_name().unwrap().to_str().unwrap();
+
+        assert_eq!(
+            held(&path, "2024/05/IMG_0001.HEIC").unwrap(),
+            path.join("2024").join("05").join("IMG_0001.HEIC")
+        );
+
+        assert!(held(&path, &format!("../{name}/SECRET.JPG")).is_err());
+        assert!(held(&path, outside.join("SECRET.JPG").to_str().unwrap()).is_err());
+        assert!(held(&path, "2024//05/IMG_0001.HEIC").is_err());
+        assert!(held(&path, "2024/05/./IMG_0001.HEIC").is_err());
+        assert!(held(&path, "notes.txt").is_err());
+        assert!(held(&path, "2024/05/MISSING.JPG").is_err());
+        assert!(held(&path, "2024/05").is_err());
+
+        #[cfg(unix)]
+        {
+            std::os::unix::fs::symlink(outside.join("SECRET.JPG"), path.join("LINK.JPG")).unwrap();
+            assert!(held(&path, "LINK.JPG").is_err());
+        }
+    }
+
+    #[test]
+    fn a_check_counts_every_file_and_byte_as_it_goes() {
+        let path = library("check-progress");
+        let mut seen = Vec::new();
+
+        check(&path, &GO, |at| seen.push(at.clone())).unwrap();
+
+        assert!(seen.iter().all(|at| (at.total, at.total_bytes) == (3, 36)));
+        let last = seen.last().unwrap();
+        assert_eq!((last.done, last.bytes), (3, 36));
+        assert!(seen.windows(2).all(|two| two[0].bytes <= two[1].bytes));
+    }
+
+    #[test]
+    fn a_second_copy_counts_every_file_and_byte_as_it_goes() {
+        let from = library("mirror-progress");
+        let to = folder("mirror-progress-to");
+        let mut seen = Vec::new();
+
+        let mirrored = mirror(&from, &to, &GO, |at| seen.push(at.clone())).unwrap();
+
+        assert_eq!((mirrored.copied, mirrored.bytes), (3, 36));
+
+        assert!(seen.iter().all(|at| (at.total, at.total_bytes) == (3, 36)));
+        let last = seen.last().unwrap();
+        assert_eq!((last.done, last.bytes), (3, 36));
+        assert!(seen.windows(2).all(|two| two[0].bytes <= two[1].bytes));
+    }
+
+    #[test]
+    fn a_stopped_check_is_stopped_and_blames_no_file() {
+        let path = library("check-stop");
+        let stop = AtomicBool::new(true);
+
+        let checked = check(&path, &stop, |_| {}).unwrap();
+
+        assert!(checked.stopped);
+        assert_eq!(checked.matched, 0);
+        assert!(checked.problems.is_empty());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_file_that_cannot_be_read_is_a_problem_not_a_stop() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let path = library("unreadable");
+        let file = path.join("2025").join("01").join("IMG_0003.JPG");
+        fs::set_permissions(&file, fs::Permissions::from_mode(0o000)).unwrap();
+        // Root reads everything; the test says nothing there.
+        if fs::read(&file).is_ok() {
+            return;
+        }
+
+        let checked = check(&path, &GO, |_| {}).unwrap();
+
+        assert!(!checked.stopped);
+        assert_eq!(checked.matched, 2);
+        assert_eq!(checked.problems.len(), 1);
+        assert_eq!(checked.problems[0].path, "2025/01/IMG_0003.JPG");
+        assert!(checked.problems[0].reason.starts_with("cannot be read"));
+    }
+
+    #[test]
+    fn only_being_stopped_reads_as_stopped() {
+        assert_eq!(told(io::Error::from(io::ErrorKind::Interrupted)), "stopped");
+        assert_ne!(told(io::Error::from(io::ErrorKind::NotFound)), "stopped");
+        assert!(!told(io::Error::from(io::ErrorKind::NotFound)).is_empty());
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn a_second_copy_on_another_disk_is_not_said_to_share_one() {
+        use std::os::unix::fs::MetadataExt;
+
+        let from = library("other-disk");
+        let to = Path::new("/dev/shm").join(format!("photo-keeper-other-{}", std::process::id()));
+        // Without a second filesystem to hand there is nothing to tell apart.
+        if fs::create_dir_all(&to).is_err()
+            || fs::metadata(&to).unwrap().dev() == fs::metadata(&from).unwrap().dev()
+        {
+            return;
+        }
+
+        mirror(&from, &to, &GO, |_| {}).unwrap();
+        let said = safety(&from, Some(&to), &GO, |_, _| {}).unwrap();
+        let _ = fs::remove_dir_all(&to);
+
+        assert!(!said.same_disk);
+        assert_eq!(said.second.unwrap().matched, 3);
+    }
+
+    #[test]
+    fn a_second_copy_whose_record_differs_is_not_taken_for_the_same() {
+        for (name, size, sha256) in [
+            // Another checksum for the same size.
+            ("differs-sum", 7, "0".repeat(64)),
+            // The same checksum for another size.
+            ("differs-size", 8, hex(Sha256::digest(b"another"))),
+        ] {
+            let from = library(name);
+            let to = folder(&format!("{name}-to"));
+            mirror(&from, &to, &GO, |_| {}).unwrap();
+            Manifest::open(&to)
+                .unwrap()
+                .record("2025/01/IMG_0003.JPG", size, &sha256, Source::Phone)
+                .unwrap();
+
+            let again = mirror(&from, &to, &GO, |_| {}).unwrap();
+
+            assert_eq!((again.copied, again.already), (0, 2), "{name}");
+            assert_eq!(again.problems.len(), 1, "{name}");
+            assert_eq!(again.problems[0].path, "2025/01/IMG_0003.JPG");
+        }
+    }
+
+    #[test]
+    fn a_second_copy_that_is_not_there_or_not_reached_is_not_checked() {
+        let from = library("no-second");
+        let gone = from.with_extension("gone");
+
+        let said = safety(&from, Some(&gone), &GO, |_, _| {}).unwrap();
+        assert_eq!(said.library.matched, 3);
+        assert!(said.second.is_none());
+
+        // A check stopped in the library says nothing of the second copy.
+        let to = folder("no-second-to");
+        mirror(&from, &to, &GO, |_| {}).unwrap();
+        let stop = AtomicBool::new(true);
+        let said = safety(&from, Some(&to), &stop, |_, _| {}).unwrap();
+        assert!(said.library.stopped);
+        assert!(said.second.is_none());
     }
 
     #[test]

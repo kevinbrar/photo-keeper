@@ -55,6 +55,9 @@ add a database or change the Rust side for it.
 - Never add anything that deletes, moves, renames or overwrites a file in the
   library or the second copy, or that deletes from the iPhone.
 - Never weaken, skip or delete a test or check to make a change pass.
+- A test counts only if it fails when the feature is broken. For any change to
+  the copy, check or verdict code, break the code on purpose and show the test
+  failing (see "Do the tests catch bugs?" in STATUS.md).
 
 If a request needs one of these, stop, explain to her in one or two sentences
 why, and suggest she ask Kevin. These paths are listed in `.github/CODEOWNERS`,

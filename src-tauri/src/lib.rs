@@ -627,29 +627,7 @@ fn stop_work(app: AppHandle) {
 async fn open_item(app: AppHandle, path: String) -> Result<(), String> {
     let folder = places(&app).folder.ok_or("no folder")?;
 
-    // Only plain names: no "..", no drive, no root, which would leave the folder.
-    let plain = |part: &str| {
-        let mut parts = Path::new(part).components();
-        matches!(parts.next(), Some(std::path::Component::Normal(_))) && parts.next().is_none()
-    };
-    if !path.split('/').all(plain) {
-        return Err("not a file in the library".into());
-    }
-
-    let file = path
-        .split('/')
-        .fold(folder.clone(), |at, part| at.join(part));
-    if !file.is_file() {
-        return Err("cannot find the file".into());
-    }
-
-    // A link in the library must not lead out of it either.
-    let (Ok(root), Ok(real)) = (folder.canonicalize(), file.canonicalize()) else {
-        return Err("cannot find the file".into());
-    };
-    if !real.starts_with(root) || !keeper::is_media(&real) {
-        return Err("not a file in the library".into());
-    }
+    let file = keeper::held(&folder, &path)?;
 
     open(file.into_os_string());
     Ok(())

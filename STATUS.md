@@ -40,3 +40,32 @@
   copy holds every photo and its checksums, but a fresh import into it would
   not know what was already imported.)
 - Albums or favourites, if she asks.
+
+## Do the tests catch bugs?
+
+Checked by breaking the code on purpose and running the tests against each
+break. Run it again after any change under `src-tauri/`:
+
+```sh
+cd src-tauri
+cargo mutants -f src/keeper.rs
+cargo mutants -f src/phone.rs -F landed_whole
+```
+
+Last run: 112 breaks of the checksum, check, second-copy and read-back code,
+103 caught, 3 would not compile, 6 not caught. Of `verdict()`, 17 hand-made
+breaks (each way of wrongly saying "safe"), 17 caught.
+
+The 6 not caught, and why:
+
+- The disk-full test in the second copy (2): nothing fills a disk in a test.
+- A second copy stopped in the middle of one file being reported as a failed
+  file instead of "stopped" (1). Stopping between files is tested.
+- The byte count shown while one file is half read (2): corrected when the
+  file ends, so only the progress bar would be off for a moment.
+- Same-disk detection on Windows (1): that code is not built on Linux. Check
+  it by hand on the PC.
+
+The first run caught 73 of 104. The 28 misses were closed with real tests:
+progress counts, a stopped check, an unreadable file, a second copy whose
+record differs, two real filesystems, and the "Open in viewer" path guard.
