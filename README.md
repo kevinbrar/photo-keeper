@@ -1,126 +1,54 @@
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/mark-dark.svg">
-    <img src="docs/mark.svg" width="128" alt="">
-  </picture>
-</p>
+# Photo Keeper
 
-<h1 align="center">Rollport</h1>
+A desktop app for Mac and Windows that copies the photos and videos from an
+iPhone over a USB cable to a folder (an external drive works), proves each copy
+matches, keeps a second copy on another disk, and shows the library by month.
 
-<p align="center">
-  Copy new photos and videos from your iPhone to a folder on your computer, over USB.<br>
-  Nothing on the phone is deleted.
-</p>
+It is built on [Rollport](https://github.com/artificiadrian/rollport) by
+artificiadrian (MIT). Rollport does the talking to the iPhone; Photo Keeper adds
+the checksums, the second copy, the safety check and the library window.
 
-<p align="center">
-  <a href="https://artificiadrian.github.io/rollport/">Website</a>
-  &nbsp;&nbsp;
-  <a href="https://artificiadrian.github.io/rollport/download">Download</a>
-  &nbsp;&nbsp;
-  <a href="https://artificiadrian.github.io/rollport/help">Help</a>
-</p>
+![The library](docs/library.png)
+![The safety check](docs/safety-check.png)
 
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/rollport-dark.webp">
-    <img src="docs/rollport.webp" width="544" alt="The Rollport window: 312 new photos and videos, an import that deals them onto a fan of prints, and the report when it is done">
-  </picture>
-</p>
+## Using it
 
-## Features
+1. Plug the iPhone in, unlock it, tap Trust.
+2. Choose the folder the photos go to (once), press **Import** and watch them
+   copy. Each file is read back from the disk and compared with what the iPhone
+   sent before it counts as imported.
+3. Press **Photos & safety** to open the library window.
+4. On **Safety check**: choose a folder on a _different disk_ for the second
+   copy (once), press **Update second copy**, then **Check now**.
+5. Only when it says **safe in two places** delete the photos on the iPhone, in
+   the Photos app, and then empty Recently Deleted.
 
-- Copies only new photos and videos, even after you delete or move old ones
-- Original files: HEIC, ProRAW, Live Photos, video, GIFs and camera RAW, never converted
-- Sorted by date: dated file names, year and month folders, or a pattern of your own
-- Choose a date range, and leave out videos, photos or Live Photo videos
-- Stop at any time and continue later; unplugging during an import loses nothing
-- Remembers each iPhone's folder; drop a folder on the window to switch
-- Keyboard: <kbd>⌘</kbd>/<kbd>Ctrl</kbd>+<kbd>Enter</kbd> imports, <kbd>⌘</kbd>/<kbd>Ctrl</kbd>+<kbd>.</kbd> stops,
-  <kbd>⌘</kbd>/<kbd>Ctrl</kbd>+<kbd>+</kbd>/<kbd>−</kbd>/<kbd>0</kbd> zooms, <kbd>⌘</kbd><kbd>?</kbd> or <kbd>F1</kbd> opens help
-- Windows, macOS and Linux
-- Free and open source, no account, works offline
+The app never deletes anything, on the iPhone or on the disks.
 
-See the [help](https://artificiadrian.github.io/rollport/help) for everything
-Rollport does.
+A drive used on both Mac and Windows has to be formatted exFAT.
 
-## Download
+## Changing how it looks
 
-Get the newest version from the
-[download page](https://artificiadrian.github.io/rollport/download), or pick a
-file here:
+Ask your AI assistant. It reads [AGENTS.md](AGENTS.md), which says what is safe
+to change (colours, layout, wording, the grid) and what is not (the code that
+copies and checks photos).
 
-| Windows                  | macOS      | Linux                |
-| ------------------------ | ---------- | -------------------- |
-| [Installer][setup.exe]   | [DMG][dmg] | [AppImage][appimage] |
-| [Portable][portable.exe] |            | [DEB][deb]           |
-|                          |            | [RPM][rpm]           |
+## Working on it
 
-[setup.exe]: https://github.com/artificiadrian/rollport/releases/latest/download/Rollport-setup.exe
-[portable.exe]: https://github.com/artificiadrian/rollport/releases/latest/download/Rollport.exe
-[dmg]: https://github.com/artificiadrian/rollport/releases/latest/download/Rollport.dmg
-[appimage]: https://github.com/artificiadrian/rollport/releases/latest/download/Rollport.AppImage
-[deb]: https://github.com/artificiadrian/rollport/releases/latest/download/Rollport.deb
-[rpm]: https://github.com/artificiadrian/rollport/releases/latest/download/Rollport.rpm
-
-Older versions are on the
-[releases page](https://github.com/artificiadrian/rollport/releases).
-
-- macOS: one DMG for Apple silicon and Intel. The app isn't notarized, so
-  macOS blocks it the first time. Allow it in
-  System Settings → Privacy & Security.
-- Windows: requires [Apple Devices](https://apps.microsoft.com/detail/9np83lwlpz9k)
-  (Microsoft Store) or iTunes. The app isn't signed, so SmartScreen warns
-  you: More info → Run anyway.
-- Linux: requires `usbmuxd` (`apt install usbmuxd` / `dnf install usbmuxd`).
-  Make the AppImage runnable first: `chmod +x Rollport.AppImage`.
-
-The iPhone has to be unlocked. The first time you connect it, tap Trust on the
-phone. Trust only your own computer, or one you know. [Get started](https://artificiadrian.github.io/rollport/help/getting-started)
-has every step for each system.
-
-Rollport imports what is on the iPhone. With Optimize iPhone Storage on, many
-originals are only in iCloud;
-[download them to the iPhone first](https://artificiadrian.github.io/rollport/help/troubleshooting#icloud).
-
-## Environment variables
-
-Rollport reads these, and sets only the first. A value you set yourself always
-wins.
-
-| Variable                                                            | What Rollport does with it                                                                                                                                                       |
-| ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `__NV_DISABLE_EXPLICIT_SYNC`                                        | Linux: set to `1` when the NVIDIA driver is loaded and you have not set it. This stops WebKitGTK's Wayland crash ("Error 71") and keeps the GPU drawing. Set `0` to turn it off. |
-| `WEBKIT_DISABLE_DMABUF_RENDERER`, `WEBKIT_DISABLE_COMPOSITING_MODE` | Linux: never set by Rollport. If you set one (to anything but `0`), WebKitGTK draws without the GPU, and Rollport changes screens without animation, which would crash it.       |
-| `APPIMAGE`                                                          | Linux: set by the AppImage. Rollport then changes screens without animation, because the AppImage's older WebKitGTK crashes on it.                                               |
-| `USBMUXD_SOCKET_ADDRESS`                                            | Where usbmuxd listens: a socket path or `host:port`. The default is `/var/run/usbmuxd`, or `127.0.0.1:27015` on Windows.                                                         |
-
-## Why I made this
-
-The Windows Photos app kept crashing when I imported from my iPhone, and I
-never liked using it anyway. I looked for something else and found nothing
-that worked the same on Windows, macOS and Linux. So I wrote
-[dcimport](https://github.com/artificiadrian/dcimport), a command-line tool,
-and then Rollport: the same idea, as an app anyone can use.
-
-## Building
-
-Requirements: [Rust](https://rustup.rs), [Node.js](https://nodejs.org) ≥ 22.18,
-[pnpm](https://pnpm.io/installation), and the
-[Tauri prerequisites](https://v2.tauri.app/start/prerequisites/).
+Rust 1.90+, Node.js 22.18+, pnpm 11 and Tauri's
+[prerequisites](https://v2.tauri.app/start/prerequisites/).
 
 ```sh
-pnpm install
-pnpm tauri dev
+pnpm install --frozen-lockfile   # also installs the git hooks
+pnpm tauri dev                   # run the app
+pnpm check && pnpm test          # the window: types and tests
+cd src-tauri && cargo clippy --all-targets -- -D warnings && cargo test
+pnpm tauri build                 # an installer for the system you are on
 ```
 
-`pnpm tauri build` builds the installer. See
-[CONTRIBUTING.md](CONTRIBUTING.md) for the rest.
+Pushing a tag like `v0.2.0` builds unsigned Mac and Windows installers onto a
+draft GitHub release. Unsigned means the Mac asks for right-click → Open the
+first time, and Windows shows "More info → Run anyway".
 
-## Licence
-
-MIT
-
----
-
-iPhone is a trademark of Apple Inc., registered in the U.S. and other
-countries and regions. Rollport is not affiliated with or endorsed by Apple.
+See [MISSION.md](MISSION.md), [DECISIONS.md](DECISIONS.md) and
+[STATUS.md](STATUS.md).

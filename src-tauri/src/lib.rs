@@ -1,3 +1,4 @@
+mod keeper;
 mod library;
 mod phone;
 mod state;
@@ -41,6 +42,8 @@ struct Remembered {
     /// By `phone_key`, so the file names no phone.
     folders: HashMap<String, PathBuf>,
     zoom: Option<f64>,
+    /// Where the second copy of the library is kept.
+    second: Option<PathBuf>,
 }
 
 impl Remembered {
@@ -396,12 +399,17 @@ fn dropped(app: &AppHandle, event: &tauri::WindowEvent) {
 
 /// The close button, ⌘W and Alt+F4 during an import ask first.
 fn closing(window: &tauri::Window, event: &tauri::WindowEvent) {
+    if window.label() != "main" {
+        return;
+    }
+
     if let tauri::WindowEvent::CloseRequested { api, .. } = event {
         // Copied out first: the guard would otherwise live through quit(),
         // which locks again.
         let copying = lock(window.app_handle()).copying();
         if !copying {
-            return;
+            // The library window goes with it: the app is one thing to close.
+            return window.app_handle().exit(0);
         }
         api.prevent_close();
         quit(window.app_handle().clone())
@@ -422,7 +430,7 @@ fn quit(app: AppHandle) {
     tauri::async_runtime::spawn(async move {
         let mut question = rfd::AsyncMessageDialog::new()
             .set_level(rfd::MessageLevel::Warning)
-            .set_title("Quit Rollport?")
+            .set_title("Quit Photo Keeper?")
             .set_description("The import stops. The photos copied so far stay in the folder.")
             .set_buttons(rfd::MessageButtons::OkCancelCustom(
                 QUIT.into(),
@@ -437,6 +445,193 @@ fn quit(app: AppHandle) {
             app.exit(0)
         }
     });
+}
+
+/// The check or second copy under way, if one is: one at a time, and Stop
+/// reaches it.
+#[derive(Default)]
+struct Working {
+    busy: std::sync::atomic::AtomicBool,
+    cancel: std::sync::Arc<std::sync::atomic::AtomicBool>,
+}
+
+/// What the library window is told about where things are.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct Places {
+    folder: Option<PathBuf>,
+    second: Option<PathBuf>,
+    /// The second copy's disk is plugged in.
+    second_there: bool,
+    importing: bool,
+}
+
+fn places(app: &AppHandle) -> Places {
+    let (folder, importing) = {
+        let state = lock(app);
+        (state.folder.path().map(PathBuf::from), state.copying())
+    };
+    let second = Remembered::load(app).second;
+
+    Places {
+        second_there: second.as_ref().is_some_and(|path| path.is_dir()),
+        folder,
+        second,
+        importing,
+    }
+}
+
+/// Open the window that shows the library, or bring it to the front.
+#[tauri::command]
+async fn open_library(app: AppHandle) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("library") {
+        let _ = window.unminimize();
+        return window.set_focus().doing("cannot show the library");
+    }
+
+    tauri::WebviewWindowBuilder::new(&app, "library", tauri::WebviewUrl::App("/#/library".into()))
+        .title("Photo Keeper")
+        .inner_size(1100.0, 760.0)
+        .min_inner_size(640.0, 480.0)
+        .build()
+        .map(|_| ())
+        .doing("cannot show the library")
+}
+
+#[tauri::command]
+async fn library_places(app: AppHandle) -> Places {
+    places(&app)
+}
+
+/// Every photo and video in the library folder, newest first. The window may
+/// then load them: only this folder, and only once it has been asked for.
+#[tauri::command]
+async fn library_items(app: AppHandle) -> Result<Vec<keeper::Item>, String> {
+    let Some(folder) = places(&app).folder else {
+        return Ok(Vec::new());
+    };
+
+    app.asset_protocol_scope()
+        .allow_directory(&folder, true)
+        .doing("cannot show the folder")?;
+
+    guarded(spawn_blocking(move || keeper::items(&folder))).await
+}
+
+/// Ask where the second copy goes, and remember it.
+#[tauri::command]
+async fn choose_second_copy(app: AppHandle) -> Places {
+    if let Some(folder) = rfd::AsyncFileDialog::new()
+        .set_title("Choose where the second copy goes")
+        .pick_folder()
+        .await
+    {
+        let path = folder.path().to_path_buf();
+        Remembered::change(&app, |remembered| remembered.second = Some(path));
+    }
+
+    places(&app)
+}
+
+/// Run one long job, telling the library window how far it has got.
+async fn work<T: Send + 'static>(
+    app: &AppHandle,
+    job: impl FnOnce(
+        &std::sync::atomic::AtomicBool,
+        &dyn Fn(&str, &keeper::Progress),
+    ) -> Result<T, String>
+    + Send
+    + 'static,
+) -> Result<T, String> {
+    use std::sync::atomic::Ordering;
+
+    let working = app.state::<Working>();
+
+    if lock(app).copying() {
+        return Err("Wait for the import to finish first.".into());
+    }
+    if working.busy.swap(true, Ordering::SeqCst) {
+        return Err("Something is already running.".into());
+    }
+
+    working.cancel.store(false, Ordering::SeqCst);
+    let cancel = working.cancel.clone();
+    let teller = app.clone();
+
+    let outcome = guarded(spawn_blocking(move || {
+        // Often enough to look alive, rarely enough not to flood the window.
+        let told = std::cell::Cell::new(None::<std::time::Instant>);
+
+        job(&cancel, &|stage, at| {
+            if told
+                .get()
+                .is_none_or(|when| when.elapsed().as_millis() >= 100)
+                || at.done == at.total
+            {
+                told.set(Some(std::time::Instant::now()));
+                let _ = teller.emit("keeper", (stage, at));
+            }
+        })
+    }))
+    .await;
+
+    working.busy.store(false, Ordering::SeqCst);
+    outcome
+}
+
+/// Read the library back from the disk and compare every file with its
+/// checksum; the second copy too, when its disk is there.
+#[tauri::command]
+async fn check_safety(app: AppHandle) -> Result<keeper::Safety, String> {
+    let Places { folder, second, .. } = places(&app);
+    let folder = folder.ok_or("Choose a folder for the photos first.")?;
+
+    work(&app, move |cancel, tell| {
+        keeper::safety(&folder, second.as_deref(), cancel, tell)
+    })
+    .await
+}
+
+/// Bring the second copy up to date with the library.
+#[tauri::command]
+async fn make_second_copy(app: AppHandle) -> Result<keeper::Mirrored, String> {
+    let Places { folder, second, .. } = places(&app);
+    let folder = folder.ok_or("Choose a folder for the photos first.")?;
+    let second = second.ok_or("Choose where the second copy goes first.")?;
+
+    work(&app, move |cancel, tell| {
+        keeper::mirror(&folder, &second, cancel, |at| tell("copy", at))
+    })
+    .await
+}
+
+#[tauri::command]
+fn stop_work(app: AppHandle) {
+    app.state::<Working>()
+        .cancel
+        .store(true, std::sync::atomic::Ordering::SeqCst)
+}
+
+/// Open one photo or video in the system's own viewer. Only a file the
+/// library holds: the window names it by its place in the folder.
+#[tauri::command]
+async fn open_item(app: AppHandle, path: String) -> Result<(), String> {
+    let folder = places(&app).folder.ok_or("no folder")?;
+
+    if path
+        .split(['/', '\\'])
+        .any(|part| part == ".." || part.is_empty())
+    {
+        return Err("not a file in the library".into());
+    }
+
+    let file = path.split('/').fold(folder, |at, part| at.join(part));
+    if !file.is_file() {
+        return Err("cannot find the file".into());
+    }
+
+    open(file.into_os_string());
+    Ok(())
 }
 
 /// Show the destination in the file manager.
@@ -666,7 +861,7 @@ fn menu(app: &AppHandle) -> tauri::Result<()> {
         rollport.append(&MenuItem::with_id(
             app,
             "quit",
-            "Quit Rollport",
+            "Quit Photo Keeper",
             true,
             Some("CmdOrCtrl+Q"),
         )?)?;
@@ -693,7 +888,7 @@ fn menu(app: &AppHandle) -> tauri::Result<()> {
         help.append(&MenuItem::with_id(
             app,
             "help",
-            "Rollport Help",
+            "Photo Keeper Help",
             true,
             Some("CmdOrCtrl+Shift+/"),
         )?)?;
@@ -741,11 +936,14 @@ pub fn run() {
             "window.__ROLLPORT_NO_TRANSITIONS__ = {no_transitions};"
         ))
         .manage(Current(Mutex::new(State::new())))
+        .manage(Working::default())
         .register_asynchronous_uri_scheme_protocol("thumb", |context, request, responder| {
             serve_thumbnail(context.app_handle(), request, responder)
         })
         .on_window_event(|window, event| {
-            dropped(window.app_handle(), event);
+            if window.label() == "main" {
+                dropped(window.app_handle(), event);
+            }
             closing(window, event)
         })
         .setup(|app| {
@@ -802,7 +1000,15 @@ pub fn run() {
             rescan,
             reveal_destination,
             show_help,
-            zoom
+            zoom,
+            open_library,
+            library_places,
+            library_items,
+            choose_second_copy,
+            check_safety,
+            make_second_copy,
+            stop_work,
+            open_item
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

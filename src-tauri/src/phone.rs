@@ -18,6 +18,7 @@ use idevice::{
     provider::IdeviceProvider,
     usbmuxd::{Connection, UsbmuxdAddr, UsbmuxdDevice, UsbmuxdListenEvent},
 };
+use sha2::{Digest, Sha256};
 use tauri::AppHandle;
 use tokio::{
     io::AsyncWriteExt,
@@ -27,7 +28,7 @@ use tokio::{
 use tokio_stream::StreamExt;
 
 use crate::{
-    Context, follow,
+    Context, follow, keeper,
     library::{Library, room},
     said,
     state::{
@@ -308,14 +309,16 @@ pub async fn copy_all(
 
             sweep(&destination);
 
-            Ok::<_, String>((library, layout, lock))
+            let manifest = keeper::Manifest::open(&destination)?;
+
+            Ok::<_, String>((library, manifest, layout, lock))
         }
     })
     .await
     .doing("cannot read rollport-library.db")?;
 
     // Held until the copy returns, and let go by the system if the app dies.
-    let (library, layout, _lock) = opened?;
+    let (library, manifest, layout, _lock) = opened?;
     let fetch = Arc::new(media);
 
     let total = fetch.len();
@@ -442,7 +445,7 @@ pub async fn copy_all(
         bytes += file.size;
 
         let recorded = match outcome {
-            Ok(Copied::Fetched) => {
+            Ok(Copied::Fetched { path, sha256 }) => {
                 imported += 1;
                 landed.push(file);
                 copied_bytes += file.size;
@@ -452,7 +455,11 @@ pub async fn copy_all(
                     latest = Some(file.path.clone());
                 }
 
-                library.record(file)
+                // The checksum first: a file the folder calls imported always
+                // has one.
+                manifest
+                    .record(&path, file.size, &sha256, keeper::Source::Phone)
+                    .and_then(|()| library.record(file))
             }
             // It was already on disk but the folder had never been told.
             // Recording it is what stops it being offered as new for ever.
@@ -703,8 +710,13 @@ fn sweep(destination: &Path) {
 
 /// What became of one file.
 pub enum Copied {
-    /// Fetched from the phone.
-    Fetched,
+    /// Fetched from the phone, read back from the disk and found the same.
+    Fetched {
+        /// Where it landed, inside the folder.
+        path: String,
+        /// SHA-256 of the bytes the phone sent.
+        sha256: String,
+    },
     /// Already on disk under the name this layout gives it, so nothing was
     /// fetched — but the folder had not recorded it, and now can.
     Already,
@@ -837,10 +849,11 @@ pub async fn copy(
     // panicked worker in a dev build and a leaked descriptor in the one we
     // ship — and either way a file that is never reported, which is how a run
     // that ran out of disk finished saying nothing went wrong.
-    let read: Result<u64, Failed> = async {
+    let read: Result<(u64, String), Failed> = async {
         let mut sink = tokio::fs::File::create(&partial)
             .await
             .on_disk("cannot write the file")?;
+        let mut hasher = Sha256::new();
         loop {
             // Between files is too late to stop when the file is a four-gigabyte
             // video. What has arrived of it goes when `Partial` does.
@@ -856,6 +869,7 @@ pub async fn copy(
                 break;
             }
 
+            hasher.update(&bytes);
             sink.write_all(&bytes)
                 .await
                 .on_disk("cannot write the file")?;
@@ -872,11 +886,13 @@ pub async fn copy(
         sink.sync_data().await.on_disk("cannot write the file")?;
 
         // What the disk holds, not what the phone sent.
-        Ok(sink
+        let written = sink
             .metadata()
             .await
             .on_disk("cannot write the file")?
-            .len())
+            .len();
+
+        Ok((written, keeper::hex(hasher.finalize())))
     }
     .await;
 
@@ -886,7 +902,7 @@ pub async fn copy(
 
     // What went wrong with the file first, and only then what went wrong with
     // letting go of it.
-    let written = read?;
+    let (written, sha256) = read?;
     closed?;
 
     // A short read or a short write is a truncated photo. Cheaper to catch
@@ -900,6 +916,10 @@ pub async fn copy(
     }
 
     // Only a whole file gets the real name.
+    // What the disk gives back is what the phone sent, before the file gets
+    // its name: a photo is called imported only once this has held.
+    landed_whole(&partial, &sha256).await?;
+
     let target = claim(target)?;
 
     if let Err(reason) = fs::rename(&partial, &target).on_disk("cannot rename the file") {
@@ -918,7 +938,32 @@ pub async fn copy(
         .open(&target)
         .and_then(|done| done.set_modified(SystemTime::from(file.mtime.and_utc())));
 
-    Ok(Copied::Fetched)
+    Ok(Copied::Fetched {
+        path: keeper::relative(destination, &target).unwrap_or_default(),
+        sha256,
+    })
+}
+
+/// Read a file just written back from the disk and compare it with the
+/// checksum of what the phone sent. A difference is this file's failure, and
+/// worth another go.
+pub async fn landed_whole(file: &Path, sha256: &str) -> Result<(), Failed> {
+    // Not stopped halfway: the file is whole, and Stop waits for the files
+    // in flight anyway.
+    let (path, flag) = (file.to_path_buf(), AtomicBool::new(false));
+
+    let read = tokio::task::spawn_blocking(move || keeper::hash_file(&path, &flag, |_| {}))
+        .await
+        .map_err(|e| Failed::File(format!("cannot check the copy: {e}")))?
+        .on_disk("cannot read the copy back")?;
+
+    if read == sha256 {
+        Ok(())
+    } else {
+        Err(Failed::File(
+            "the copy on the disk did not match what the iPhone sent".into(),
+        ))
+    }
 }
 
 /// One file's share of the room on the disk, from before its first byte
@@ -1478,7 +1523,10 @@ mod tests {
         assert!(worth_again(&Err(Failed::File("timed out".into()))));
         assert!(!worth_again(&Err(Failed::Folder("read-only".into()))));
         assert!(!worth_again(&Err(Failed::Full)));
-        assert!(!worth_again(&Ok(Copied::Fetched)));
+        assert!(!worth_again(&Ok(Copied::Fetched {
+            path: String::new(),
+            sha256: String::new(),
+        })));
         assert!(!worth_again(&Ok(Copied::Already)));
     }
 
@@ -1649,6 +1697,26 @@ mod tests {
         assert!(!dir.join(&dead).exists());
         assert!(dir.join(&live).exists());
         assert!(dir.join(".film.mp4.part").exists());
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_copy_that_reads_back_differently_is_refused() {
+        let dir = std::env::temp_dir().join(format!("photo-keeper-landed-{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("IMG_0001.HEIC");
+        fs::write(&file, b"abc").unwrap();
+
+        let run =
+            |sha256: &'static str| tauri::async_runtime::block_on(landed_whole(&file, sha256));
+
+        // SHA-256 of "abc", from FIPS 180-2.
+        assert!(run("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad").is_ok());
+
+        let refused = run("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ae");
+        assert!(matches!(refused, Err(Failed::File(_))));
+        assert!(worth_again(&refused.map(|()| Copied::Already)));
 
         let _ = fs::remove_dir_all(&dir);
     }

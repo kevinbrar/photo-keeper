@@ -1,8 +1,8 @@
 {
     "$schema": "https://schema.tauri.app/config/2",
-    "productName": "Rollport",
+    "productName": "Photo Keeper",
     "version": "0.1.0",
-    "identifier": "com.artificiadrian.rollport",
+    "identifier": "com.kevinbrar.photokeeper",
     "build": {
         "beforeDevCommand": "pnpm dev",
         "devUrl": "http://localhost:1420",
@@ -12,7 +12,7 @@
     "app": {
         "windows": [
             {
-                "title": "Rollport",
+                "title": "Photo Keeper",
                 "width": 400,
                 "height": 560,
                 "titleBarStyle": "Transparent",
@@ -21,8 +21,9 @@
             }
         ],
         "security": {
-            "csp": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: thumb: http://thumb.localhost; connect-src ipc: http://ipc.localhost; object-src 'none'; frame-src 'none'; base-uri 'none'",
-            "devCsp": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: thumb: http://thumb.localhost; connect-src ipc: http://ipc.localhost ws://localhost:1420 http://localhost:1420; object-src 'none'; frame-src 'none'; base-uri 'none'"
+            "assetProtocol": { "enable": true, "scope": [] },
+            "csp": "default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob: thumb: http://thumb.localhost asset: http://asset.localhost; media-src 'self' asset: http://asset.localhost; worker-src 'self' blob:; connect-src ipc: http://ipc.localhost asset: http://asset.localhost; object-src 'none'; frame-src 'none'; base-uri 'none'",
+            "devCsp": "default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob: thumb: http://thumb.localhost asset: http://asset.localhost; media-src 'self' asset: http://asset.localhost; worker-src 'self' blob:; connect-src ipc: http://ipc.localhost asset: http://asset.localhost ws://localhost:1420 http://localhost:1420; object-src 'none'; frame-src 'none'; base-uri 'none'"
         }
     },
     "bundle": {

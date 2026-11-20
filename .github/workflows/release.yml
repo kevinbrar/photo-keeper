@@ -1,10 +1,7 @@
-# Builds Rollport for every system. CI calls it after the checks pass, when a
+# Builds Photo Keeper for every system. CI calls it after the checks pass, when a
 # version tag is pushed (git tag v0.2.0 && git push origin v0.2.0), and it puts
 # the files on a draft release of that tag. Publish the draft by hand once the
 # files are checked.
-# The files are named without the version (Rollport.dmg, Rollport-setup.exe),
-# so https://github.com/artificiadrian/rollport/releases/latest/download/<file>
-# always gives the newest release's file, and the site links to that.
 name: Release
 
 on:
@@ -32,7 +29,7 @@ jobs:
           - system: Windows
             platform: windows-latest
             args: --bundles nsis
-            names: "Rollport[setup][ext]"
+            names: "PhotoKeeper[setup][ext]"
             plain: true
           # The oldest supported Ubuntu, so the Linux build runs on older glibc too.
           - system: Linux
@@ -73,7 +70,7 @@ jobs:
           # The pushed tag, so the files land on its release even if the
           # version in tauri.conf.json was not raised to match.
           tagName: ${{ github.ref_name }}
-          releaseName: Rollport ${{ github.ref_name }}
+          releaseName: Photo Keeper ${{ github.ref_name }}
           releaseBody: Download the file for your system below. The builds are not signed yet; see the README for how to open them.
           releaseDraft: true
           args: ${{ matrix.args }}
@@ -86,4 +83,4 @@ jobs:
         if: matrix.system == 'macOS'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release delete-asset "${{ github.ref_name }}" Rollport.app.tar.gz --yes --repo "${{ github.repository }}"
+        run: gh release delete-asset "${{ github.ref_name }}" Photo.Keeper.app.tar.gz --yes --repo "${{ github.repository }}" || true

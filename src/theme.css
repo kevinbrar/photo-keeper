@@ -1,0 +1,19 @@
+/* How the library window looks. This is the file to change for colours,
+   sizes and spacing: every value here is safe to change, and nothing in it
+   can affect how photos are copied or checked. See AGENTS.md. */
+:root {
+    /* The colour of the main buttons, the selected tab and the progress bar. */
+    --keeper-accent: var(--tomato-9);
+    --keeper-accent-ink: white;
+
+    /* The colour that says "safe" and the one that says "look at this". */
+    --keeper-good: #2f8f5b;
+    --keeper-warn: var(--orange-11);
+    --keeper-bad: var(--tomato-11);
+
+    /* The photo grid: how wide a photo is, the space between photos, and how
+       round their corners are. */
+    --keeper-tile: 150px;
+    --keeper-gap: 6px;
+    --keeper-radius: 8px;
+}
