@@ -49,7 +49,6 @@
     }
 
     async function load() {
-        loaded += 1
         loading = true
         failed = ""
         try {
@@ -60,6 +59,9 @@
             failed = String(e)
         }
         loading = false
+        // After the awaits, so the effect that calls load() does not come to
+        // depend on the counter and run for ever.
+        loaded += 1
     }
 
     function show(index: number | null) {
