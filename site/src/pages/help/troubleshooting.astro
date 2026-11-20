@@ -1,0 +1,278 @@
+---
+import Command from "../../components/Command.astro"
+import CommandList from "../../components/CommandList.astro"
+import HelpSection from "../../components/HelpSection.astro"
+import Help from "../../layouts/Help.astro"
+import { site } from "../../site"
+---
+
+<Help
+    title="Troubleshooting: Rollport"
+    description="What to do when Rollport does not open, does not find the iPhone, or cannot finish an import."
+>
+    <div class="max-w-(--container-text)">
+        <h1 class="text-3xl font-semibold">Troubleshooting</h1>
+    </div>
+
+    <HelpSection question id="mac-cannot-open">
+        <p>
+            Apple has not notarized Rollport yet, so macOS blocks it the first
+            time you open it. Close the message. Then open{" "}
+            <b>System Settings</b> › <b>Privacy &amp; Security</b> and click{" "}
+            <b>Open Anyway</b>.
+        </p>
+    </HelpSection>
+
+    <HelpSection question id="windows-protected">
+        <p>
+            Rollport is not signed yet, so Microsoft Defender SmartScreen warns
+            about it. Click <b>More info</b>, then <b>Run anyway</b>.
+        </p>
+    </HelpSection>
+
+    <HelpSection question id="windows-apple-devices">
+        <p>
+            Windows needs Apple's USB driver to see the iPhone. Install Apple
+            Devices from the Microsoft Store, or iTunes. Then connect the iPhone
+            again. <a href={site.appleDevices}>Get Apple Devices</a>
+        </p>
+    </HelpSection>
+
+    <HelpSection question id="linux-usbmuxd">
+        <p>
+            Rollport reaches the iPhone through <code>usbmuxd</code>. Install it
+            with your package manager, then connect the iPhone again:
+        </p>
+        <CommandList
+            items={[
+                {
+                    label: "Debian, Ubuntu",
+                    command: "sudo apt install usbmuxd",
+                },
+                { label: "Fedora", command: "sudo dnf install usbmuxd" },
+            ]}
+        />
+        <p>
+            usbmuxd starts when an iPhone is plugged in and stops when the last
+            one is unplugged, so until then Rollport asks you to connect the
+            iPhone. If Rollport says <b>Cannot see iPhones</b> while the iPhone
+            is plugged in, usbmuxd did not start or stopped answering. Restart
+            it:
+        </p>
+        <Command>sudo systemctl restart usbmuxd</Command>
+        <p>
+            If your usbmuxd listens somewhere else than{" "}
+            <code>/var/run/usbmuxd</code>, set{" "}
+            <code>USBMUXD_SOCKET_ADDRESS</code> to its socket path or{" "}
+            <code>host:port</code>.
+        </p>
+    </HelpSection>
+
+    <HelpSection question id="nothing-happens">
+        <p>
+            Unlock the iPhone. The first time, tap <b>Trust</b> if it is your
+            own computer, then enter your passcode. If Rollport still does not
+            see it, try another cable or another USB port.
+        </p>
+    </HelpSection>
+
+    <HelpSection question id="trust-refused">
+        <p>
+            <b>Don't Trust</b> was tapped on the iPhone, so it does not ask
+            again for now. Unplug the iPhone and plug it in again. When it asks
+            whether to trust this computer, tap <b>Trust</b> if it is your own
+            computer, then enter your passcode.
+        </p>
+        <p>
+            If the iPhone does not ask again, open <b>Settings</b> ›{" "}
+            <b>General</b> › <b>Transfer or Reset iPhone</b> › <b>Reset</b> ›{" "}
+            <b>Reset Location &amp; Privacy</b> on the iPhone.
+        </p>
+    </HelpSection>
+
+    <HelpSection question id="cannot-connect">
+        <p>
+            The iPhone is plugged in, but it did not answer as expected. The red
+            text under the message says what went wrong. Unplug the iPhone,
+            unlock it, and plug it in again. Rollport keeps trying every few
+            seconds. If that does not help, restart the computer and the iPhone.
+        </p>
+    </HelpSection>
+
+    <HelpSection question id="camera-roll">
+        <p>
+            The iPhone trusts this computer, but it is locked, so it does not
+            show its photos. Unlock it. Rollport tries again every few seconds
+            and continues on its own.
+        </p>
+    </HelpSection>
+
+    <HelpSection question id="folder-unusable">
+        <p>
+            Rollport cannot open or write to the folder. The red text says why.
+            Common reasons:
+        </p>
+        <ul>
+            <li>
+                The folder was moved, renamed, or deleted, or the disk it is on
+                is not connected.
+            </li>
+            <li>You do not have permission to write to the folder.</li>
+            <li>
+                The folder stopped responding, which happens with network drives
+                and sleeping disks.
+            </li>
+            <li>
+                <code>rollport-library.db</code> in the folder is damaged.
+            </li>
+        </ul>
+        <p>
+            Connect the disk or fix the folder, then choose it again, or choose
+            another folder.
+        </p>
+    </HelpSection>
+
+    <HelpSection question id="not-enough-space">
+        <p>
+            Rollport always leaves 2 GB free on the disk, so the computer keeps
+            working. Before an import, it tells you when everything will not fit
+            and how much to free up. You can also choose a shorter date range or
+            fewer media types in <b>Options</b>.
+        </p>
+        <p>
+            If the disk fills up during an import, Rollport copies what fits and
+            says how much space the rest needs. Free up space, then click{" "}
+            <b>Continue</b>.
+        </p>
+    </HelpSection>
+
+    <HelpSection question id="not-copied">
+        <p>
+            Rollport tries each file three times. When a file still cannot be
+            copied, Rollport goes on with the others, then names the file that
+            failed. The file stays on the iPhone, and the next import tries it
+            again.
+        </p>
+        <p>
+            When the import itself fails, for example because the folder cannot
+            be written to, Rollport says <b>Import failed</b>. Everything
+            imported before that stays in the folder. The red text says what
+            went wrong.
+        </p>
+    </HelpSection>
+
+    <HelpSection question id="icloud">
+        <p>
+            With <b>Optimize iPhone Storage</b> on, the iPhone keeps only a
+            small copy of many photos and videos, and the original is in iCloud.
+            Rollport imports what is on the iPhone, so it does not see these
+            originals. It can say that all photos are already here while some
+            are missing.
+        </p>
+        <p>
+            To import them, open <b>Settings</b> on the iPhone, tap your name,
+            then <b>iCloud</b> and <b>Photos</b>, and choose{" "}
+            <b>Download and Keep Originals</b>. The iPhone needs enough free
+            space for them. When it has downloaded them, import again.
+        </p>
+    </HelpSection>
+
+    <HelpSection question id="folder-busy">
+        <p>
+            Only one import at a time can write into a folder, so two imports
+            never mix up its record. Rollport is already importing into this
+            folder, on this computer or another one. Wait until it is done, then
+            import again.
+        </p>
+    </HelpSection>
+
+    <HelpSection question id="network-drive">
+        <p>
+            Rollport can import into a folder on a network drive, but if the
+            connection drops, the import stops. What is already copied stays
+            there, and you can click <b>Continue</b> later. A folder on an
+            internal or external disk is more reliable.
+        </p>
+    </HelpSection>
+
+    <HelpSection question id="linux-blank">
+        <p>
+            Some graphics drivers do not work with WebKitGTK, which draws
+            Rollport's window. With the NVIDIA driver, Rollport sets{" "}
+            <code>__NV_DISABLE_EXPLICIT_SYNC=1</code> itself, which stops the
+            crash on Wayland ("Error 71") and keeps the GPU drawing. A value you
+            set yourself wins, so <code>__NV_DISABLE_EXPLICIT_SYNC=0</code>{" "}
+            turns this off. The AppImage changes screens without animation,
+            because its older WebKitGTK crashes on it.
+        </p>
+        <p>
+            If the window still opens empty, or closes again at once, start
+            Rollport from a terminal with these commands, one at a time, until
+            one works. They draw without the GPU, so screens change without
+            animation:
+        </p>
+        <Command>WEBKIT_DISABLE_DMABUF_RENDERER=1 rollport</Command>
+        <Command>WEBKIT_DISABLE_COMPOSITING_MODE=1 rollport</Command>
+        <p>
+            With the AppImage, run it from its folder instead of{" "}
+            <code>rollport</code>, for example:
+        </p>
+        <Command>WEBKIT_DISABLE_DMABUF_RENDERER=1 ./Rollport.AppImage</Command>
+        <p>
+            Please also <a href={`${site.repo}/issues`}>open an issue</a> with
+            your Linux distribution and graphics card, so we can fix it for
+            everyone.
+        </p>
+    </HelpSection>
+
+    <HelpSection question id="windows-heic">
+        <p>
+            The iPhone saves photos as HEIC and videos as HEVC, and Rollport
+            copies them as they are. Windows needs two extensions from the
+            Microsoft Store to open them:{" "}
+            <a href={site.heif}>HEIF Image Extensions</a> (free) and{" "}
+            <a href={site.hevc}>HEVC Video Extensions</a> (paid). The photos
+            need both.
+        </p>
+        <p>
+            To take new photos as JPEG instead, open <b>Settings</b> ›{" "}
+            <b>Camera</b> › <b>Formats</b> on the iPhone and choose{" "}
+            <b>Most Compatible</b>. Photos you already took stay HEIC.
+        </p>
+    </HelpSection>
+
+    <HelpSection question id="forget">
+        <p>Quit Rollport, then delete its settings folder:</p>
+        <CommandList
+            items={[
+                {
+                    label: "Mac",
+                    command:
+                        "~/Library/Application Support/com.artificiadrian.rollport",
+                },
+                {
+                    label: "Windows",
+                    command: "%APPDATA%\\com.artificiadrian.rollport",
+                },
+                {
+                    label: "Linux",
+                    command: "~/.config/com.artificiadrian.rollport",
+                },
+            ]}
+        />
+        <p>
+            That folder holds only the folder you used last, the folder of each
+            iPhone, and the window size. Your photos and folders are not
+            touched. The next time you open Rollport, it starts as if newly
+            installed.
+        </p>
+    </HelpSection>
+
+    <HelpSection question id="something-else">
+        <p>
+            Tell us what happened, which system you use (Mac, Windows, or
+            Linux), and your iPhone model.{" "}
+            <a href={`${site.repo}/issues`}>Open an issue on GitHub</a>
+        </p>
+    </HelpSection>
+</Help>

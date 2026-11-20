@@ -1,0 +1,128 @@
+---
+// Every file of the newest release. Your system's files come first, under the
+// app icon; the other two systems follow below a line. The page holds all
+// three in both places and shows the right ones by CSS (windows: and linux:
+// variants; a Mac's is the default), as the rest of the site does. A
+// visitor on another system (other: variant) gets the three systems alike.
+import appIcon from "../../../src-tauri/app-icon.svg?url"
+import DownloadButton from "../components/DownloadButton.astro"
+import Footer from "../components/Footer.astro"
+import Page from "../layouts/Page.astro"
+import { files, site, url, type Os } from "../site"
+
+const systems: { os: Os; label: string }[] = [
+    { os: "mac", label: "Mac" },
+    { os: "windows", label: "Windows" },
+    { os: "linux", label: "Linux" },
+]
+// What a system needs before Rollport sees the iPhone: its Get started step.
+const needs: Partial<Record<Os, { name: string; step: string }>> = {
+    windows: { name: "Apple Devices", step: "apple-devices" },
+    linux: { name: "usbmuxd", step: "usbmuxd" },
+}
+// Complete class names, so Tailwind finds them. A Mac's is the default.
+const yours = {
+    mac: "windows:hidden linux:hidden other:hidden",
+    windows: "hidden windows:block",
+    linux: "hidden linux:block",
+}
+const yoursInline = {
+    mac: "windows:hidden linux:hidden other:hidden",
+    windows: "hidden windows:inline",
+    linux: "hidden linux:inline",
+}
+// Two columns; a system with one file centres it, one column wide.
+const columns = {
+    mac: "sm:grid-cols-[calc(50%-0.5rem)] sm:justify-center",
+    windows: "sm:grid-cols-2",
+    linux: "sm:grid-cols-2",
+}
+const others = {
+    mac: "hidden windows:block linux:block other:block",
+    windows: "windows:hidden",
+    linux: "linux:hidden",
+}
+const ofSystem = (os: Os) => files.filter((file) => file.os === os)
+---
+
+<Page
+    title="Download Rollport"
+    description="Rollport for Mac, Windows, and Linux: every download of the newest version."
+    stickyHeader
+>
+    <main class="wrap flex flex-1 flex-col items-center pt-12 text-center">
+        <img class="size-[6rem]" src={appIcon} alt="" />
+        <h1 class="mt-4 text-3xl font-semibold text-balance">
+            Download Rollport
+            {systems.map(({ os, label }) => (
+                <span class={yoursInline[os]}> for {label}</span>
+            ))}
+        </h1>
+        <p class="mt-3 flex flex-wrap justify-center gap-x-4 text-muted">
+            <span>Version {site.version}</span>
+            <a class="link hover:text-ink" href={site.releases}>
+                All releases
+            </a>
+        </p>
+        <p class="mt-6 hidden text-muted other:block">
+            Rollport runs on a Mac, Windows or Linux computer.
+        </p>
+
+        <!-- Your system's files on the same two columns as the other systems
+             below, so every button is as wide and every edge lines up. -->
+        {systems.map(({ os }) => (
+            <div class:list={["mt-8 w-full text-left", yours[os]]}>
+                <div class:list={["grid gap-2 sm:gap-x-4", columns[os]]}>
+                    {ofSystem(os).map((file) => (
+                        <DownloadButton file={file} />
+                    ))}
+                </div>
+                {needs[os] && (
+                    <p class="mt-3 text-sm text-muted">
+                        Needs{" "}
+                        <a
+                            class="link hover:text-ink"
+                            href={url(
+                                `/help/getting-started#${needs[os].step}`,
+                            )}
+                        >
+                            {needs[os].name}
+                        </a>
+                    </p>
+                )}
+            </div>
+        ))}
+
+        <section class="mt-16 w-full text-left other:mt-8">
+            <h2 class="text-sm font-medium text-muted other:hidden">
+                Other systems
+            </h2>
+            <div class="mt-4 grid gap-8 sm:grid-cols-2 sm:gap-x-4">
+                {systems.map(({ os, label }) => (
+                    <div class={others[os]}>
+                        <h3 class="mb-3 text-xl font-semibold">{label}</h3>
+                        <div class="grid gap-2">
+                            {ofSystem(os).map((file) => (
+                                <DownloadButton file={file} />
+                            ))}
+                        </div>
+                        {needs[os] && (
+                            <p class="mt-3 text-sm text-muted">
+                                Needs{" "}
+                                <a
+                                    class="link hover:text-ink"
+                                    href={url(
+                                        `/help/getting-started#${needs[os].step}`,
+                                    )}
+                                >
+                                    {needs[os].name}
+                                </a>
+                            </p>
+                        )}
+                    </div>
+                ))}
+            </div>
+        </section>
+        <Footer class="w-full text-left" />
+    </main>
+</Page>

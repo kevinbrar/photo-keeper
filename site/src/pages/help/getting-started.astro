@@ -1,0 +1,326 @@
+---
+// Get started: from the download to the first import, one step per row, for
+// the visitor's system. The switch sets data-os on <html>, as the page does
+// before it paints, so the steps, their numbers, the app's pictures, and the
+// sidebar change by CSS alone (windows: and linux: variants; a Mac's is the
+// default). Each step is on the page once, so its id is unique.
+import ArrowRight from "@lucide/astro/icons/arrow-right"
+import ArrowUpRight from "@lucide/astro/icons/arrow-up-right"
+import Folder from "@lucide/astro/icons/folder"
+import Terminal from "@lucide/astro/icons/terminal"
+import Usb from "@lucide/astro/icons/usb"
+import appIcon from "../../../../src-tauri/app-icon.svg?url"
+import Button from "../../components/Button.astro"
+import CommandList from "../../components/CommandList.astro"
+import DownloadButton from "../../components/DownloadButton.astro"
+import FirstTime from "../../components/FirstTime.astro"
+import FormatTabs from "../../components/FormatTabs.astro"
+import Step from "../../components/Step.astro"
+import StepBody from "../../components/StepBody.astro"
+import Window from "../../components/Window.astro"
+import Help from "../../layouts/Help.astro"
+import { fileUrl, files, site, url } from "../../site"
+
+const systems = [
+    { os: "mac", label: "Mac" },
+    { os: "windows", label: "Windows" },
+    { os: "linux", label: "Linux" },
+] as const
+---
+
+<Help
+    title="Get started: Rollport"
+    description="Install Rollport, connect your iPhone, choose a folder, and do the first import. For Mac, Windows, and Linux."
+    wide
+>
+    <!-- A download from any button lands here (?file=): it starts, and this
+         says which, with the steps for that file's system below. -->
+    <p
+        class="mb-8 hidden self-start rounded-xl bg-element px-4 py-3 text-sm text-muted data-shown:block [&_b]:font-semibold [&_b]:text-ink"
+        data-downloading
+        data-files={JSON.stringify(
+            Object.fromEntries(
+                files.map((file) => [
+                    file.name,
+                    { os: file.os, url: fileUrl(file.name) },
+                ]),
+            ),
+        )}
+    >
+        <b></b> is downloading. If it does not start,{" "}
+        <a class="link text-ink" href="#">
+            download it again
+        </a>
+        .
+    </p>
+    <h1 class="text-3xl font-semibold">Get started</h1>
+    <p class="mt-4 text-lg text-muted text-pretty">
+        A few steps, the first time only. After that, connect the iPhone and
+        click <b>Import</b>.
+    </p>
+    <!-- Radio buttons: one of three, with arrow keys, announced as such. -->
+    <fieldset class="mt-6 inline-grid grid-cols-3 gap-1 self-start rounded-xl bg-element p-1">
+        <legend class="sr-only">Steps for</legend>
+        {systems.map(({ os, label }) => (
+            <label class="cursor-pointer rounded-lg px-4 py-1.5 text-center text-muted transition-colors hover:text-ink has-checked:bg-canvas dark:has-checked:bg-fill has-checked:font-medium has-checked:text-ink has-checked:shadow-xs has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-ink">
+                <input class="sr-only" type="radio" name="os" value={os} />
+                {label}
+            </label>
+        ))}
+    </fieldset>
+
+    <!-- A numbered line: a number per step, joined by a thin line, and no
+         boxes. The picture sits right of the text from xl, under it before. -->
+    <ol class="mt-12">
+        <Step id="apple-devices">
+            <StepBody>
+                <p>
+                    Windows needs Apple's USB driver to see the iPhone. Install
+                    Apple Devices from the Microsoft Store, or iTunes.
+                </p>
+                <Button
+                    slot="after"
+                    href={site.appleDevices}
+                    variant="soft"
+                    class="mt-6"
+                >
+                    Get Apple Devices
+                    <ArrowUpRight size={16} aria-hidden="true" />
+                </Button>
+                <div
+                    slot="art"
+                    class="flex flex-col items-center gap-2 text-sm text-muted"
+                    aria-hidden="true"
+                >
+                    <!-- The step's text names it; the picture only shows it. -->
+                    <span class="grid size-[6rem] place-items-center rounded-full bg-element">
+                        <Usb size={40} stroke-width={1.25} />
+                    </span>
+                    Apple Devices
+                </div>
+            </StepBody>
+        </Step>
+
+        <Step id="usbmuxd">
+            <StepBody>
+                <p>
+                    Rollport reaches the iPhone through <code>usbmuxd</code>.
+                    Install it with your package manager:
+                </p>
+                <CommandList
+                    slot="after"
+                    items={[
+                        {
+                            label: "Debian, Ubuntu",
+                            command: "sudo apt install usbmuxd",
+                        },
+                        {
+                            label: "Fedora",
+                            command: "sudo dnf install usbmuxd",
+                        },
+                    ]}
+                />
+                <div
+                    slot="art"
+                    class="flex flex-col items-center gap-2 text-sm text-muted"
+                    aria-hidden="true"
+                >
+                    <span class="grid size-[6rem] place-items-center rounded-full bg-element">
+                        <Terminal size={40} stroke-width={1.25} />
+                    </span>
+                    usbmuxd
+                </div>
+            </StepBody>
+        </Step>
+
+        <Step id="install">
+            <StepBody os="mac">
+                <p>
+                    Open the .dmg file and drag Rollport to <b>Applications</b>.
+                </p>
+                <Fragment slot="after">
+                    <div class="mt-6 grid max-w-[16rem] gap-2">
+                        {files
+                            .filter((file) => file.os === "mac")
+                            .map((file) => (
+                                <DownloadButton file={file} direct />
+                            ))}
+                    </div>
+                    <FirstTime>
+                        macOS blocks Rollport, because Apple has not notarized
+                        it yet. Close the message, then open{" "}
+                        <b>System Settings</b> › <b>Privacy &amp; Security</b>{" "}
+                        and click <b>Open Anyway</b>.
+                    </FirstTime>
+                </Fragment>
+                <div
+                    slot="art"
+                    class="flex items-center gap-4 text-sm text-muted"
+                    role="img"
+                    aria-label="Rollport goes into the Applications folder"
+                >
+                    <!-- Each picture over its name, as in a Finder window; the
+                         arrow sits level with the pictures. -->
+                    <span class="flex flex-col items-center gap-1">
+                        <img class="size-16" src={appIcon} alt="" />
+                        Rollport
+                    </span>
+                    <ArrowRight class="mb-6" size={20} aria-hidden="true" />
+                    <span class="flex flex-col items-center gap-1">
+                        <span class="grid size-16 place-items-center">
+                            <Folder
+                                size={56}
+                                stroke-width={1.25}
+                                aria-hidden="true"
+                            />
+                        </span>
+                        Applications
+                    </span>
+                </div>
+            </StepBody>
+            <StepBody os="windows">
+                <p>Download Rollport and install it:</p>
+                <Fragment slot="after">
+                    <FormatTabs os="windows" />
+                    <FirstTime>
+                        Windows may say it protected your PC, because Rollport
+                        is not signed yet. Click <b>More info</b>, then{" "}
+                        <b>Run anyway</b>.
+                    </FirstTime>
+                </Fragment>
+                <div
+                    slot="art"
+                    class="flex flex-col items-center gap-1 text-sm text-muted"
+                >
+                    <img class="size-[6rem]" src={appIcon} alt="" />
+                    Rollport
+                </div>
+            </StepBody>
+            <StepBody os="linux">
+                <p>Download the format for your distribution and install it:</p>
+                <FormatTabs slot="after" os="linux" />
+                <div
+                    slot="art"
+                    class="flex flex-col items-center gap-1 text-sm text-muted"
+                >
+                    <img class="size-[6rem]" src={appIcon} alt="" />
+                    Rollport
+                </div>
+            </StepBody>
+        </Step>
+
+        <Step id="connect">
+            <StepBody>
+                <p>
+                    Connect the iPhone with a USB cable and unlock it. The first
+                    time, the iPhone asks whether to trust this computer: tap{" "}
+                    <b>Trust</b>, then enter your passcode. Trust only your own
+                    computer, or one you know. Rollport waits and tells you what
+                    to do.
+                </p>
+                <p>
+                    Nothing goes over the internet: the photos go only through
+                    the cable.
+                </p>
+                <Window
+                    slot="art"
+                    class="w-full max-w-shot"
+                    screen="trust"
+                    title="Rollport asks you to tap Trust on the iPhone"
+                />
+            </StepBody>
+        </Step>
+
+        <Step id="folder">
+            <StepBody>
+                <p>
+                    Choose where the photos go. Rollport suggests a folder:
+                    click <b>Change…</b> to pick another, or drop a folder on
+                    the window. Then click <b>Use this folder</b>. Use the same
+                    folder every time: it keeps a record of what it already has,
+                    so each import adds only what is new.
+                </p>
+                <Window
+                    slot="art"
+                    class="w-full max-w-shot"
+                    screen="folder"
+                    title="Rollport asks where the photos go, and suggests a folder"
+                />
+            </StepBody>
+        </Step>
+
+        <Step id="import">
+            <StepBody>
+                <p>
+                    Rollport counts the photos and videos the folder does not
+                    have yet, and shows the newest. Click <b>Import</b>.
+                </p>
+                <p>
+                    Files are copied unchanged, so HEIC stays HEIC. Each file
+                    keeps the date and time it was taken. Nothing on the iPhone
+                    is deleted.
+                </p>
+                <p>
+                    To import only some photos, or to name the files
+                    differently, see{" "}
+                    <a href={url("/help/using")}>Using Rollport</a>.
+                </p>
+                <Window
+                    slot="art"
+                    class="w-full max-w-shot"
+                    screen="ready"
+                    title="Rollport shows 312 new photos and videos, ready to import"
+                />
+            </StepBody>
+        </Step>
+    </ol>
+
+    <p class="mt-12 text-muted">
+        Something does not work? See{" "}
+        <a class="link text-ink" href={url("/help/troubleshooting")}>
+            Troubleshooting
+        </a>
+        .
+    </p>
+</Help>
+
+<script>
+    // The switch shows the steps for one system; it starts on the visitor's.
+    const root = document.documentElement
+    const radios = [
+        ...document.querySelectorAll<HTMLInputElement>('input[name="os"]'),
+    ]
+    function show(os: string) {
+        root.dataset["os"] = os
+        for (const radio of radios) radio.checked = radio.value === os
+        // The sidebar marks the step being read again (layouts/Help.astro).
+        dispatchEvent(new Event("resize"))
+    }
+    for (const radio of radios)
+        radio.addEventListener("change", () => show(radio.value))
+
+    // ?file=: start that download, say so, show its system, and narrow the
+    // install step to it. The address loses it, so a reload does not download
+    // again.
+    const banner = document.querySelector<HTMLElement>("[data-downloading]")!
+    const known: Record<string, { os: string; url: string }> = JSON.parse(
+        banner.dataset["files"] ?? "{}",
+    )
+    const name = new URLSearchParams(location.search).get("file") ?? ""
+    const file = known[name]
+    if (file) {
+        banner.querySelector("b")!.textContent = name
+        banner.querySelector("a")!.href = file.url
+        banner.toggleAttribute("data-shown", true)
+        document
+            .querySelector<HTMLElement>(`[data-tab="${CSS.escape(name)}"]`)
+            ?.click()
+        history.replaceState(null, "", location.pathname + location.hash)
+        location.href = file.url
+    }
+    // A link to a step for one system (#usbmuxd) opens on that system.
+    const step = location.hash
+        ? document.getElementById(decodeURIComponent(location.hash.slice(1)))
+        : null
+    show(file?.os ?? step?.dataset["only"] ?? root.dataset["os"] ?? "mac")
+</script>

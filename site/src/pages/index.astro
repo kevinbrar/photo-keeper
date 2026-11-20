@@ -1,0 +1,142 @@
+---
+import Download from "@lucide/astro/icons/download"
+import Author from "../components/Author.astro"
+import Button from "../components/Button.astro"
+import Trademark from "../components/Trademark.astro"
+import Window from "../components/Window.astro"
+import Page from "../layouts/Page.astro"
+import { sentence, url } from "../site"
+
+// The demo's first tint, there from the first paint: the last photo its count
+// finds (found in demo/tauri.ts). The app tints before this page listens, so
+// its first "photo" message is lost.
+const firstPhoto = "sunset.svg"
+---
+
+<Page
+    title="Rollport: copy photos from your iPhone to a folder"
+    description={sentence}
+    oneScreen
+>
+    <!-- One screen under the header: the window and the sentence centred in
+         the free room, the downloads at the bottom. Clipped sideways: the glow
+         reaches past the column, and past narrow screens. -->
+    <div class="flex h-[calc(100svh-var(--spacing-header))] flex-col overflow-x-clip">
+        <!-- The frame's height for each unit of width: the app's height (its
+             "height" message, script below) over its 400 px width, plus the
+             title bar in Window.astro (7, 8, 10 cqi). -->
+        <main class="wrap flex min-h-0 flex-1 flex-col items-center text-center @container [--app-height:560] [--bar:0.07] [--frame:calc(var(--app-height)/400+var(--bar))] windows:[--bar:0.08] linux:[--bar:0.1]">
+            <div class="flex w-full flex-1 flex-col items-center justify-center-safe py-4 short:py-0">
+                <!-- The only part that gives way on a short screen: its full
+                     size is the basis, and the window is as wide as fits in the
+                     box both ways. Under 192 px tall it stops, and the page
+                     scrolls; on the shortest screens it is left out. The whole
+                     column wide, so the glow lines up with the header above. -->
+                <div class="relative flex shortest:hidden max-h-[calc(min(440px,100cqw)*var(--frame))] min-h-[12rem] w-full grow basis-0 justify-center [container-type:size]">
+                    <!-- The app tints its window with the photo in front, blurred
+                         past recognising. The same photo, blurred the same way,
+                         spreads wide behind the window as a soft oval, and follows the demo.
+                         Two layers, to cross-fade; the wrappers fade, not the
+                         blurred pictures, as in the app, where fading those made
+                         WebKit redraw them brighter. -->
+                    <div
+                        class="pointer-events-none absolute -inset-x-[30%] -inset-y-[10%] -z-1 overflow-hidden opacity-[0.28] dark:opacity-[0.22] mask-radial-[closest-side] mask-radial-from-20% mask-radial-to-100%"
+                        aria-hidden="true"
+                    >
+                        {[firstPhoto, null].map((photo) => (
+                            <div
+                                class="absolute inset-0 transition-opacity duration-600 data-hidden:opacity-0"
+                                data-glow
+                                data-hidden={photo ? undefined : ""}
+                            >
+                                <img
+                                    class="absolute -inset-[90px] size-[calc(100%+180px)] max-w-none object-fill blur-[90px] saturate-150"
+                                    src={
+                                        photo
+                                            ? url(`/demo/photos/${photo}`)
+                                            : undefined
+                                    }
+                                    alt=""
+                                />
+                            </div>
+                        ))}
+                    </div>
+                    <div class="w-[min(100cqw,100cqh/var(--frame))]">
+                        <Window
+                            screen="live"
+                            title="Rollport, running with a demo iPhone that has 312 new photos and videos"
+                        />
+                    </div>
+                </div>
+                <p class="mt-8 max-w-md shrink-0 text-xl text-balance short:mt-4">
+                    {sentence}
+                </p>
+            </div>
+            <div class="shrink-0 pt-2 pb-8 short:pb-4">
+                <!-- One button to the download page, which puts your system
+                     first: no format is chosen for you here. -->
+                <Button href={url("/download")} variant="solid" size="large">
+                    <!-- As tall as both lines, like a drop cap. -->
+                    <Download
+                        slot="icon"
+                        class="shrink-0"
+                        size={32}
+                        stroke-width={1.5}
+                        aria-hidden="true"
+                    />
+                    Download
+                    <Fragment slot="detail">Mac, Windows and Linux</Fragment>
+                </Button>
+                <!-- What a system needs, and the version, are on the download
+                     page; here, only who made it, on one line. -->
+                <p class="mt-8 text-sm text-balance text-muted short:mt-4">
+                    Free and open source by <Author />.
+                </p>
+                <Trademark class="mt-2 text-balance" />
+            </div>
+        </main>
+    </div>
+
+    <script>
+        import type { DemoMessage } from "../../demo/tauri"
+        import { url } from "../site"
+
+        // The glow follows the app's tint. The first layer starts with the
+        // app's first tint (firstPhoto above); a new photo cross-fades in.
+        const live = document.querySelector<HTMLIFrameElement>(
+            'iframe[data-demo="live"]',
+        )
+        const main = document.querySelector("main")
+        const glows = [...document.querySelectorAll<HTMLElement>("[data-glow]")]
+        let front = 0
+        let shown = glows[0]?.querySelector("img")?.src.split("/").pop()
+        function showPhoto(name: string) {
+            if (name === shown) return
+            shown = name
+            const next = glows[1 - front]
+            const current = glows[front]
+            const image = next?.querySelector("img")
+            if (!next || !current || !image) return
+            image.src = url(`/demo/photos/${name}`)
+            front = 1 - front
+            // Fade in once it has loaded, so no empty layer shows.
+            image
+                .decode()
+                .catch(() => {})
+                .then(() => {
+                    delete next.dataset["hidden"]
+                    current.dataset["hidden"] = ""
+                })
+        }
+        addEventListener("message", (event: MessageEvent<DemoMessage>) => {
+            if (event.source !== live?.contentWindow) return
+            if (event.data?.rollport === "photo") showPhoto(event.data.name)
+            // A taller app (Options open) makes the window narrower, so it still fits.
+            if (event.data?.rollport === "height")
+                main?.style.setProperty(
+                    "--app-height",
+                    String(event.data.height),
+                )
+        })
+    </script>
+</Page>
