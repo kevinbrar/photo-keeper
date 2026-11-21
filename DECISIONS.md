@@ -69,3 +69,10 @@ guess later. Add to it; do not rewrite history.
 15. **A result is thrown away when anything changes.** A new import, another
     folder, a disk plugged in or pulled out, or a check that fails all clear
     the last verdict, so an old "safe" is never left on screen.
+
+16. **`main` requires CI, not Kevin's approval.** The `Rust` and `Window`
+    checks must pass before a merge. Kevin chose not to be a required
+    reviewer, so CODEOWNERS only asks him for a review; decision 11's "need
+    Kevin's review" rests on AGENTS.md, not on GitHub. The repository is
+    public because GitHub's free plan has no branch protection for private
+    ones; it holds code only, never photos.

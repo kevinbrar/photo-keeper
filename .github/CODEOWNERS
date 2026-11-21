@@ -1,5 +1,6 @@
 # Changes to how photos are copied and checked, and to the guard rails
-# themselves, need Kevin's review. Everything else is open. See AGENTS.md.
+# themselves, ask for Kevin's review. Everything else is open. See AGENTS.md.
+# The review is requested, not required: main only requires the CI checks.
 /src-tauri/               @kevinbrar
 /src/lib/library.ts       @kevinbrar
 /src/lib/library.test.ts  @kevinbrar
