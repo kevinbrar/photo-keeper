@@ -61,7 +61,9 @@ add a database or change the Rust side for it.
 
 If a request needs one of these, stop, explain to her in one or two sentences
 why, and suggest she ask Kevin. These paths are listed in `.github/CODEOWNERS`,
-so a pull request touching them needs his approval anyway.
+so a pull request touching them asks him for a review. GitHub does not block
+the merge without it (only the CI checks are required), so holding back is
+your job.
 
 ## How to make a change
 
