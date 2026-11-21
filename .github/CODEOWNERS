@@ -1,0 +1,10 @@
+# Changes to how photos are copied and checked, and to the guard rails
+# themselves, need Kevin's review. Everything else is open. See AGENTS.md.
+/src-tauri/               @kevinbrar
+/src/lib/library.ts       @kevinbrar
+/src/lib/library.test.ts  @kevinbrar
+/.github/                 @kevinbrar
+/lefthook.yml             @kevinbrar
+/AGENTS.md                @kevinbrar
+/MISSION.md               @kevinbrar
+/DECISIONS.md             @kevinbrar

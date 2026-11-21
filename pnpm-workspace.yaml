@@ -1,0 +1,4 @@
+allowBuilds:
+  esbuild: true
+  # Its install script puts the git hooks from lefthook.yml in place.
+  lefthook: true
